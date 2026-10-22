@@ -1,0 +1,479 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+model User {
+  id            Int       @id @default(autoincrement())
+  mobile        String    @unique @db.VarChar(20)
+  name          String?   @db.VarChar(200)
+  email         String?   @db.VarChar(200)
+  gotram        String?   @db.VarChar(100)
+  nakshatram    String?   @db.VarChar(100)
+  rashi         String?   @db.VarChar(100)
+  is_active     Boolean   @default(true)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  familyMembers   FamilyMember[]
+  bookings        Booking[]
+  customerPass    CustomerPass?
+  packagePurchases PackagePurchase[]
+
+  @@map("users")
+}
+
+model AdminUser {
+  id         Int      @id @default(autoincrement())
+  username   String   @unique @db.VarChar(100)
+  email      String   @unique @db.VarChar(200)
+  password   String   @db.VarChar(255)
+  role       String   @default("admin") @db.VarChar(50)
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+
+  @@map("admin_users")
+}
+
+model OtpSession {
+  id         Int      @id @default(autoincrement())
+  mobile     String   @db.VarChar(20)
+  otp_hash   String   @db.VarChar(255)
+  attempts   Int      @default(0)
+  verified   Boolean  @default(false)
+  expires_at DateTime
+  created_at DateTime @default(now())
+
+  @@index([mobile])
+  @@map("otp_sessions")
+}
+
+// ─── Devotee Data ─────────────────────────────────────────────────────────────
+
+model FamilyMember {
+  id                 Int     @id @default(autoincrement())
+  user_id            Int
+  full_name          String  @db.VarChar(200)
+  relationship       String  @db.VarChar(50)  // self|spouse|son|daughter|father|mother|brother|sister|other
+  relationship_label String? @db.VarChar(100)
+  gotram             String? @db.VarChar(100)
+  nakshatram         String? @db.VarChar(100)
+  rashi              String? @db.VarChar(100)
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("family_members")
+}
+
+// ─── Pooja Content ───────────────────────────────────────────────────────────
+
+model OneToOnePooja {
+  id              String  @id @db.VarChar(100)
+  slug            String  @unique @db.VarChar(120)
+  category_id     String? @db.VarChar(100)
+  title           Json    // LocalizedString {en, te}
+  subtitle        Json
+  short_desc      Json
+  full_desc       Json
+  deity           Json
+  tradition       Json?
+  ideal_days      Json?
+  benefits        Json    // LocalizedString[]
+  mode_available  String  @default("both") @db.VarChar(20) // both|online|at_temple
+  min_lead_hours  Int     @default(48)
+  starting_price  Int
+  image_url       String? @db.VarChar(500)
+  faqs            Json    // FAQItem[]
+  deliverables    Json    // LocalizedString[]
+  arrangements    Json?
+  home_prep       Json?
+  prerequisites   Json?
+  is_flagship     Boolean @default(false)
+  occasion_ids    Json?   // string[]
+  duration_range  String? @db.VarChar(50)
+  related_slugs   Json?   // string[]
+  is_active       Boolean @default(true)
+  sort_order      Int     @default(0)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  packages PoojaPackage[]
+
+  @@map("one_to_one_poojas")
+}
+
+model PoojaPackage {
+  id              String  @id @db.VarChar(100)
+  pooja_id        String  @db.VarChar(100)
+  name            Json
+  tagline         Json
+  duration_mins   Int
+  pandits_count   Int     @default(1)
+  price           Int
+  features        Json    // LocalizedString[]
+  inclusions      Json?
+  samagri         Boolean @default(true)
+  online_eligible Boolean @default(true)
+  temple_eligible Boolean @default(true)
+  is_popular      Boolean @default(false)
+  description     Json
+  sort_order      Int     @default(0)
+
+  pooja OneToOnePooja @relation(fields: [pooja_id], references: [id], onDelete: Cascade)
+
+  @@index([pooja_id])
+  @@map("pooja_packages")
+}
+
+model GroupPooja {
+  id               String   @id @db.VarChar(100)
+  slug             String   @unique @db.VarChar(120)
+  title            Json
+  subtitle         Json
+  deity            Json
+  short_desc       Json
+  full_desc        Json?
+  next_date        DateTime
+  tithi_info       Json
+  booking_closes   Json?
+  time_display     Json?
+  duration_mins    Int?
+  category_tag     Json?
+  frequency        Json?
+  price_online     Int
+  price_offline    Int
+  online_includes  Json     // LocalizedString[]
+  offline_includes Json
+  deliverables     Json
+  image_url        String?  @db.VarChar(500)
+  faqs             Json
+  sankalpam_info   Json?
+  live_info        Json?
+  prasadam_info    Json?
+  prev_highlights  Json?
+  venue_name       Json?
+  is_active        Boolean  @default(true)
+  sort_order       Int      @default(0)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  @@map("group_poojas")
+}
+
+model GroupPackage {
+  id               String   @id @db.VarChar(100)
+  slug             String   @unique @db.VarChar(120)
+  name             Json
+  description      Json
+  cycle_count      Int
+  price_per_person Int
+  status           String   @default("active") @db.VarChar(20)
+  featured         Boolean  @default(false)
+  mode             String   @default("online") @db.VarChar(20)
+  prasadam_enabled Boolean  @default(true)
+  prasadam_price   Int?
+  annadanam_enabled Boolean @default(true)
+  pass_eligible    Boolean  @default(false)
+  display_order    Int      @default(0)
+  included_poojas  Json     // {id, recurring_pooja_id, slug, name, deity, normal_price}[]
+  benefits         Json     // {benefit_text: LocalizedString}[]
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  purchases PackagePurchase[]
+
+  @@map("group_packages")
+}
+
+model PoojaCategory {
+  id          String  @id @db.VarChar(100)
+  slug        String  @unique @db.VarChar(100)
+  name        Json
+  description Json
+  icon_name   String? @db.VarChar(100)
+  sort_order  Int     @default(0)
+  is_active   Boolean @default(true)
+
+  @@map("pooja_categories")
+}
+
+model Occasion {
+  id          Int      @id @default(autoincrement())
+  name        Json
+  subtitle    Json?
+  slug        String?  @db.VarChar(120)
+  pooja_id    String?  @db.VarChar(100)
+  next_date   String?  @db.VarChar(30)
+  frequency   Json?
+  sort_order  Int      @default(0)
+  is_active   Boolean  @default(true)
+
+  @@map("occasions")
+}
+
+// ─── Booking System ───────────────────────────────────────────────────────────
+
+model Booking {
+  id                  Int      @id @default(autoincrement())
+  booking_ref         String   @unique @db.VarChar(30)  // M360-BK-XXXXXX
+  user_id             Int?
+  booking_type        String   @db.VarChar(20)          // one_to_one|group
+  pooja_id            String   @db.VarChar(100)
+  pooja_slug          String   @db.VarChar(120)
+  pooja_title         Json
+  deity               Json?
+  package_name        Json?
+  package_price       Int?
+  mode                String   @db.VarChar(20)          // online|at_temple
+  scheduled_date      String   @db.VarChar(20)          // YYYY-MM-DD
+  scheduled_slot      String?  @db.VarChar(50)
+  duration_mins       Int?
+  customer_name       String   @db.VarChar(200)
+  customer_mobile     String   @db.VarChar(20)
+  customer_email      String?  @db.VarChar(200)
+  participants_count  Int      @default(1)
+  add_ons             Json     // {includePrasadam, prasadamAmount, annadanamAmount}
+  breakdown           Json     // PaymentBreakdown
+  status              String   @default("confirmed") @db.VarChar(20)
+  sankalpam_status    String   @default("pending") @db.VarChar(20)
+  current_stage       String   @default("booking_confirmed") @db.VarChar(40)
+  participants        Json?    // ParticipantSankalpam[]
+  meet_url            String?  @db.VarChar(500)
+  is_live             Boolean  @default(false)
+  youtube_url         String?  @db.VarChar(500)
+  recording_url       String?  @db.VarChar(500)
+  recording_data      Json?    // {durationMinutes, certificateUrl, leadPandit, milestones[]}
+  razorpay_order_id   String?  @unique @db.VarChar(100)
+  razorpay_payment_id String?  @db.VarChar(100)
+  payment_status      String   @default("pending") @db.VarChar(20)
+  package_purchase_id String?  @db.VarChar(100)
+  occurrence_id       String?  @db.VarChar(100)
+  time_display        Json?    // for group bookings
+  tithi_info          Json?    // for group bookings
+  temple_venue        Json?    // for group bookings
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  user User? @relation(fields: [user_id], references: [id])
+
+  @@index([user_id])
+  @@index([customer_mobile])
+  @@index([booking_type])
+  @@index([status])
+  @@map("bookings")
+}
+
+model SlotHold {
+  id          Int      @id @default(autoincrement())
+  session_id  String   @db.VarChar(100)
+  pooja_slug  String   @db.VarChar(120)
+  date        String   @db.VarChar(20)
+  slot_id     String   @db.VarChar(100)
+  time_string String   @db.VarChar(50)
+  expires_at  DateTime
+  created_at  DateTime @default(now())
+
+  @@index([session_id])
+  @@index([pooja_slug, date, slot_id])
+  @@map("slot_holds")
+}
+
+// ─── Pooja Pass ───────────────────────────────────────────────────────────────
+
+model PassConfig {
+  id                   Int      @id @default(1)
+  price                Int
+  name                 Json
+  tagline              Json
+  description          Json
+  benefits_sequence    Json     // PassBenefitItem[]
+  recurring_benefit    Json     // PassBenefitItem
+  updated_at           DateTime @updatedAt
+
+  @@map("pass_configs")
+}
+
+model CustomerPass {
+  id                  Int      @id @default(autoincrement())
+  pass_number         String   @unique @db.VarChar(30)
+  user_id             Int      @unique
+  customer_name       String   @db.VarChar(200)
+  mobile              String   @db.VarChar(20)
+  purchased_date      String   @db.VarChar(20)
+  is_active           Boolean  @default(true)
+  no_expiry           Boolean  @default(true)
+  total_savings       Int      @default(0)
+  benefits_used_count Int      @default(0)
+  benefit_history     Json     @default("[]")
+  razorpay_order_id   String?  @db.VarChar(100)
+  payment_status      String   @default("pending") @db.VarChar(20)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id])
+
+  @@map("customer_passes")
+}
+
+// ─── Group Package Purchases ──────────────────────────────────────────────────
+
+model PackagePurchase {
+  id                   String   @id @db.VarChar(50)
+  user_id              Int?
+  customer_name        String   @db.VarChar(200)
+  customer_mobile      String   @db.VarChar(20)
+  customer_email       String?  @db.VarChar(200)
+  package_id           String   @db.VarChar(100)
+  package_snapshot     Json     // frozen copy of GroupPackage at time of purchase
+  participant_count    Int
+  participant_profiles Json     // [{name, gotram, nakshatram, rashi, relationship_label}]
+  price_per_person     Int
+  subtotal             Int
+  tax                  Int      @default(0)
+  addon_prasadam       Int      @default(0)
+  addon_annadanam      Int      @default(0)
+  discount             Int      @default(0)
+  final_amount         Int
+  status               String   @default("active") @db.VarChar(20)
+  entitled_count       Int
+  completed_count      Int      @default(0)
+  occurrences          Json     @default("[]")  // GroupPackageOccurrence[]
+  payment_ref          String?  @db.VarChar(100)
+  razorpay_order_id    String?  @unique @db.VarChar(100)
+  payment_status       String   @default("pending") @db.VarChar(20)
+  temple_timezone      String   @default("Asia/Kolkata") @db.VarChar(50)
+  purchase_timestamp   DateTime @default(now())
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+
+  user     User?        @relation(fields: [user_id], references: [id])
+  package  GroupPackage @relation(fields: [package_id], references: [id])
+
+  @@index([user_id])
+  @@index([customer_mobile])
+  @@map("package_purchases")
+}
+
+// ─── Content ──────────────────────────────────────────────────────────────────
+
+model Faq {
+  id         Int     @id @default(autoincrement())
+  question   Json
+  answer     Json
+  category   String? @db.VarChar(50) // general|booking|pass|group|one_to_one
+  sort_order Int     @default(0)
+  is_active  Boolean @default(true)
+
+  @@map("faqs")
+}
+
+model GalleryItem {
+  id         Int     @id @default(autoincrement())
+  image_url  String  @db.VarChar(500)
+  alt_text   Json?
+  title      Json?
+  category   String? @db.VarChar(50)
+  sort_order Int     @default(0)
+  is_active  Boolean @default(true)
+
+  @@map("gallery_items")
+}
+
+model Testimonial {
+  id           Int     @id @default(autoincrement())
+  devotee_name String  @db.VarChar(200)
+  location     String? @db.VarChar(200)
+  avatar_url   String? @db.VarChar(500)
+  content      Json    // LocalizedString
+  rating       Int?
+  video_url    String? @db.VarChar(500)
+  is_video     Boolean @default(false)
+  sort_order   Int     @default(0)
+  is_active    Boolean @default(true)
+
+  @@map("testimonials")
+}
+
+model Recording {
+  id            Int     @id @default(autoincrement())
+  title         Json
+  deity         Json?
+  pooja_date    String  @db.VarChar(20)
+  video_url     String  @db.VarChar(500)
+  thumbnail_url String? @db.VarChar(500)
+  duration_mins Int?
+  pandit_name   String? @db.VarChar(200)
+  pooja_type    String? @db.VarChar(20)  // one_to_one|group
+  sort_order    Int     @default(0)
+  is_active     Boolean @default(true)
+
+  @@map("recordings")
+}
+
+model Blog {
+  id           Int       @id @default(autoincrement())
+  slug         String    @unique @db.VarChar(200)
+  title        Json
+  subtitle     Json?
+  content      Json      // rich content / sections
+  author       String?   @db.VarChar(200)
+  image_url    String?   @db.VarChar(500)
+  category     String?   @db.VarChar(100)
+  tags         Json?
+  is_active    Boolean   @default(true)
+  published_at DateTime?
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  @@map("blogs")
+}
+
+// ─── Payments & Notifications ─────────────────────────────────────────────────
+
+model Payment {
+  id                  Int      @id @default(autoincrement())
+  razorpay_order_id   String   @unique @db.VarChar(100)
+  razorpay_payment_id String?  @db.VarChar(100)
+  razorpay_signature  String?  @db.VarChar(500)
+  amount              Int      // in paise
+  currency            String   @default("INR") @db.VarChar(5)
+  entity_type         String   @db.VarChar(20)  // booking|pass|package
+  entity_id           String   @db.VarChar(100)
+  status              String   @default("pending") @db.VarChar(20)
+  webhook_verified    Boolean  @default(false)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  @@map("payments")
+}
+
+model WhatsappLog {
+  id          Int      @id @default(autoincrement())
+  to_mobile   String   @db.VarChar(20)
+  template    String   @db.VarChar(100)
+  entity_type String?  @db.VarChar(20)
+  entity_id   String?  @db.VarChar(100)
+  status      String   @default("sent") @db.VarChar(20)
+  error       String?  @db.Text
+  created_at  DateTime @default(now())
+
+  @@map("whatsapp_logs")
+}
+
+model Setting {
+  key        String @id @db.VarChar(100)
+  value      String @db.Text
+  updated_at DateTime @updatedAt
+
+  @@map("settings")
+}

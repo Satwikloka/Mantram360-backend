@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.local
+*.log
+npm-debug.log*
+
+# Prisma binary (Linux-specific, downloaded separately on server)
+libquery_engine-*.node
+*.so.node
+
+# macOS
+.DS_Store
