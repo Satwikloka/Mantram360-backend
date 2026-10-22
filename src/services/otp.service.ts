@@ -62,8 +62,8 @@ export const otpService = {
 
     return {
       success: true,
-      // Only expose debug OTP in non-production when SMS failed
-      debugOtp: !smsSent && config.env !== 'production' ? otp : undefined,
+      // debugOtp exposed when SMS failed AND either not-production or OTP_DEBUG env var is set
+      debugOtp: !smsSent && (config.env !== 'production' || process.env.OTP_DEBUG === 'true') ? otp : undefined,
     }
   },
 
